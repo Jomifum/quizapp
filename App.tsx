@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from "react";
-import Axios from "axios";
+import axios from "axios";
 import "./App.css";
 import Questionaire from "./Component/Questionaire";
 import Header from "./Component/Header";
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min';
+import { ThemeProvider, createTheme } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+import { Switch } from "@mui/material";
 
-const API_URL = "https://opentdb.com/api.php?amount=20&category=9&difficulty=easy&type=multiple";
+const UNSPLASH_ACCESS_KEY = "YOUR_UNSPLASH_ACCESS_KEY"; // Replace with your Unsplash API access key
 
 const fetchImages = async (query) => {
-  const UNSPLASH_URL = `https://api.unsplash.com/search/photos?query=${query}&client_id=YOUR_UNSPLASH_ACCESS_KEY`;
+  const UNSPLASH_URL = `https://api.unsplash.com/search/photos?query=${query}&client_id=${UNSPLASH_ACCESS_KEY}`;
   try {
-    const response = await Axios.get(UNSPLASH_URL);
+    const response = await axios.get(UNSPLASH_URL);
     return response.data.results[0]?.urls?.regular || ''; // Return the URL of the first image
   } catch (error) {
     console.error("Failed to fetch image:", error);
@@ -19,9 +22,9 @@ const fetchImages = async (query) => {
   }
 };
 
-const fetchQuestions = async (retryCount = 0) => {
+const fetchQuestions = async () => {
   try {
-    const response = await Axios.get(API_URL);
+    const response = await axios.get("https://opentdb.com/api.php?amount=20&category=9&difficulty=easy&type=multiple");
     const questions = await Promise.all(response.data.results.map(async (question) => {
       const imageUrl = await fetchImages(question.question);
       return {
@@ -35,24 +38,17 @@ const fetchQuestions = async (retryCount = 0) => {
     }));
     return questions;
   } catch (error) {
-    if (error.response && error.response.status === 429 && retryCount < 5) {
-      const retryAfter = Math.pow(2, retryCount) * 1000; // Exponential backoff
-      console.warn(`Retrying in ${retryAfter / 1000} seconds...`);
-      await new Promise(resolve => setTimeout(resolve, retryAfter));
-      return fetchQuestions(retryCount + 1);
-    } else {
-      console.error("Failed to fetch questions:", error);
-      throw error;
-    }
+    console.error("Failed to fetch questions:", error);
+    return [];
   }
 };
 
-function App() {
+export default function App() {
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [showAnswers, setShowAnswers] = useState(false);
-  const [darkMode, setDarkMode] = useState(false); // State for dark mode
+  const [toggleDarkMode, setToggleDarkMode] = useState(false);
 
   useEffect(() => {
     const loadQuestions = async () => {
@@ -63,7 +59,6 @@ function App() {
         console.error("Error loading questions:", error);
       }
     };
-
     loadQuestions();
   }, []);
 
@@ -99,32 +94,54 @@ function App() {
     }
   };
 
+  const toggleDarkTheme = () => {
+    setToggleDarkMode(!toggleDarkMode);
+  };
+
+  const theme = createTheme({
+    palette: {
+      mode: toggleDarkMode ? 'dark' : 'light',
+      primary: {
+        main: toggleDarkMode ? '#90caf9' : '#3f51b5',
+      },
+      secondary: {
+        main: toggleDarkMode ? '#f48fb1' : '#f50057',
+      },
+    },
+  });
+
   return (
-    <div className={`container ${darkMode ? 'dark-mode' : ''}`}>
-      <Header />
-      <button onClick={() => setDarkMode(!darkMode)} className="dark-mode-toggle">
-        Toggle Dark Mode
-      </button>
-      <h2>Score: {score}</h2>
-      <h2>
-        {currentIndex + 1} out of {questions.length} Questions
-      </h2>
-      <button onClick={restartGame} className="next-question">
-        Restart Game
-      </button>
-      {currentIndex >= questions.length ? (
-        <h1>Game Ended, Your Score is {(score / questions.length) * 100}%</h1>
-      ) : (
-        <Questionaire
-          handleAnswer={handleAnswer}
-          showAnswers={showAnswers}
-          handleNextQuestion={handleNextQuestion}
-          handlePreviousQuestion={handlePreviousQuestion}
-          data={questions[currentIndex]}
-        />
-      )}
-    </div>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <div className={`container ${toggleDarkMode ? 'dark-mode' : ''}`}>
+        <Header />
+        <button onClick={toggleDarkTheme} className="dark-mode-toggle">
+          {toggleDarkMode ? "Light Mode" : "Dark Mode"}
+        </button>
+        <h2>Score: {score}</h2>
+        <h2>
+          {currentIndex + 1} out of {questions.length} Questions
+        </h2>
+        <button onClick={restartGame} className="next-question">
+          Restart Game
+        </button>
+        {questions.length > 0 && currentIndex < questions.length ? (
+          <Questionaire
+            handleAnswer={handleAnswer}
+            showAnswers={showAnswers}
+            handleNextQuestion={handleNextQuestion}
+            handlePreviousQuestion={handlePreviousQuestion}
+            data={questions[currentIndex]}
+            toggleDarkMode={toggleDarkMode}
+          />
+        ) : (
+          <h1>Loading...</h1>
+        )}
+      </div>
+    </ThemeProvider>
   );
+}
+
 }
 
 export default App;
